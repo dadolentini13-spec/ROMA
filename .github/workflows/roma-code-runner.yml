@@ -1,0 +1,62 @@
+name: ROMA 08 - Verified Code Tests
+run-name: ROMA08-${{ inputs.job_id }}
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: Unique ROMA job ID
+        required: true
+        type: string
+      source_sha:
+        description: Reviewed full source commit SHA in this repository
+        required: true
+        type: string
+      language:
+        description: Test runtime
+        required: true
+        type: choice
+        options:
+          - python
+          - typescript
+permissions:
+  contents: read
+concurrency:
+  group: roma08-${{ inputs.job_id }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Validate immutable source ref
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$SOURCE_SHA" =~ ^[a-fA-F0-9]{40}$ ]] || exit 1
+      - name: Checkout exact commit (no persisted credentials)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+          persist-credentials: false
+      - name: Setup Python
+        if: ${{ inputs.language == 'python' }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Python tests
+        if: ${{ inputs.language == 'python' }}
+        run: |
+          test -n "$(find tests -type f -name 'test_*.py' -print -quit)" || { echo 'No Python tests found'; exit 1; }
+          python -m unittest discover -s tests -p 'test_*.py' -v
+      - name: Setup Node
+        if: ${{ inputs.language == 'typescript' }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: TypeScript tests
+        if: ${{ inputs.language == 'typescript' }}
+        run: |
+          test -f package.json && test -f package-lock.json || { echo 'Node project and lockfile required'; exit 1; }
+          npm ci --ignore-scripts --no-audit
+          npm test --if-present
+          node -e "const p=require('./package.json'); if (!p.scripts || !p.scripts.test) process.exit(1)"
