@@ -1,0 +1,8 @@
+{
+  "name": "roma08-runner-smoke",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "tsc --project tsconfig.json && node dist/tests/test-math.js" },
+  "devDependencies": { "typescript": "5.8.3" }
+}
